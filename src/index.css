@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ✅ Real-Time Price Blink Animation */
+.price-up {
+  animation: blink-green 0.6s ease;
+}
+
+.price-down {
+  animation: blink-red 0.6s ease;
+}
+
+@keyframes slow-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+
+.slow-blink {
+  animation: slow-blink 2s infinite;
+}
+
+@keyframes bounceSlow {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-25px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes bounceSlow2 {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(25px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-bounce-slow {
+  animation: bounceSlow 5s ease-in-out infinite;
+}
+.animate-bounce-slow2 {
+  animation: bounceSlow2 6s ease-in-out infinite;
+}
+@keyframes slideUp {
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-10px); }
+  to { transform: translateY(0); }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.5s ease-out;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.5s ease-out;
+}
+
+
+
