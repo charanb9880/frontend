@@ -17,11 +17,39 @@ function Card({ children }) {
   );
 }
 
+/* ======================
+   MINI TREND LINE (SVG)
+======================= */
+function MiniTrend({ points, rising }) {
+  if (!points || points.length < 2) return <div className="h-6"></div>;
+
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+
+  const normalized = points.map((p, i) => {
+    const x = (i / (points.length - 1)) * 100;
+    const y = 100 - ((p - min) / range) * 100;
+    return `${x},${y}`;
+  });
+
+  return (
+    <svg width="100" height="30" viewBox="0 0 100 100" className="overflow-visible">
+      <polyline
+        fill="none"
+        stroke={rising ? "#22c55e" : "#ef4444"}
+        strokeWidth="3"
+        strokeLinecap="round"
+        points={normalized.join(" ")}
+      />
+    </svg>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const role = localStorage.getItem("role");
-  const userName = localStorage.getItem("name");
 
   const [data, setData] = useState({
     virtual_cash: 0,
@@ -32,22 +60,18 @@ export default function Dashboard() {
   const [sys, setSys] = useState({ trading_enabled: false });
   const [market, setMarket] = useState([]);
   const [previousMarket, setPreviousMarket] = useState({});
+  const [marketHistory, setMarketHistory] = useState({});
+
   const [popup, setPopup] = useState("");
+
+  // Candles
   const [symbol, setSymbol] = useState("AAPL");
   const [qty, setQty] = useState(1);
   const [candleData, setCandleData] = useState([]);
-
   const chartRef = useRef(null);
   const chartObj = useRef(null);
 
-  function pl(p) {
-    const cost = Number(p.average_price) * Number(p.quantity);
-    const mkt = Number(p.current_price) * Number(p.quantity);
-    const diff = mkt - cost;
-    return { cost, mkt, diff };
-  }
-
-  // Load data every 4 sec
+  // Load Data
   useEffect(() => {
     if (!token) return navigate("/login");
 
@@ -63,18 +87,28 @@ export default function Dashboard() {
 
         const m = await fetch(`${API}/api/prices`).then((r) => r.json());
 
-        // Save previous prices for trend calculation
+        // Save previous price for trend
         setPreviousMarket((prev) => {
           const newMap = {};
-          if (Array.isArray(m)) {
-            m.forEach((x) => {
-              newMap[x.symbol] = prev[x.symbol] || x.current_price;
-            });
-          }
+          m.forEach((x) => {
+            newMap[x.symbol] = prev[x.symbol] || x.current_price;
+          });
           return newMap;
         });
 
-        setMarket(Array.isArray(m) ? m : []);
+        // Save 20-point history per symbol
+        setMarketHistory((prev) => {
+          const newHistory = { ...prev };
+          m.forEach((x) => {
+            if (!newHistory[x.symbol]) newHistory[x.symbol] = [];
+            newHistory[x.symbol].push(Number(x.current_price));
+            if (newHistory[x.symbol].length > 20)
+              newHistory[x.symbol].shift();
+          });
+          return newHistory;
+        });
+
+        setMarket(m);
       } catch (e) {
         setPopup(e.message);
       }
@@ -85,6 +119,7 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [token, navigate]);
 
+  // Trade
   async function trade(kind, sym, quantity) {
     if (role === "ADMIN") return alert("Admins cannot trade!");
 
@@ -110,39 +145,30 @@ export default function Dashboard() {
     }
   }
 
+  // Candles
   function loadCandles(sym) {
     fetch(`${API}/api/candles/${sym}`)
       .then((r) => r.json())
-      .then((res) => setCandleData(Array.isArray(res) ? res : []));
+      .then((res) => setCandleData(res));
   }
 
-  // Chart render
   useEffect(() => {
     if (!chartRef.current || candleData.length === 0) return;
-
     if (chartObj.current) chartObj.current.remove();
 
     const chart = createChart(chartRef.current, {
       width: chartRef.current.clientWidth,
       height: 320,
-      layout: {
-        background: { color: "#0f1114" },
-        textColor: "#d1d5db",
-      },
+      layout: { background: { color: "#0f1114" }, textColor: "#d1d5db" },
       grid: {
         vertLines: { color: "#1f2937" },
         horzLines: { color: "#1f2937" },
       },
     });
-
     const candleSeries = chart.addSeries({
       type: "candlestick",
       upColor: "#16a34a",
       downColor: "#dc2626",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#dc2626",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#dc2626",
     });
 
     candleSeries.setData(
@@ -154,13 +180,8 @@ export default function Dashboard() {
         close: Number(d.close),
       }))
     );
-
     chartObj.current = chart;
   }, [candleData]);
-
-  const priceObj = market.find((m) => m.symbol === symbol);
-  const price = Number(priceObj?.current_price ?? 0);
-  const totalCost = price * qty;
 
   return (
     <motion.div
@@ -172,18 +193,15 @@ export default function Dashboard() {
       {popup && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-600 w-72 text-center">
-            <div className="text-white">{popup}</div>
-            <button
-              className="mt-3 w-full bg-red-600 py-2 rounded"
-              onClick={() => setPopup("")}
-            >
+            <div>{popup}</div>
+            <button className="mt-3 w-full bg-red-600 py-2 rounded" onClick={() => setPopup("")}>
               Close
             </button>
           </div>
         </div>
       )}
 
-      {/* Status Badges */}
+      {/* Status */}
       <div className="flex gap-3">
         <div
           className={`px-3 py-1 rounded-full text-xs ${
@@ -192,6 +210,7 @@ export default function Dashboard() {
         >
           {sys.trading_enabled ? "Trading Open" : "Trading Paused"}
         </div>
+
         <div
           className={`px-3 py-1 rounded-full text-xs ${
             data.status === "APPROVED" ? "bg-green-600/20" : "bg-orange-600/20"
@@ -208,11 +227,11 @@ export default function Dashboard() {
         </div>
       </Card>
 
-      {/* Trade Panel */}
+      {/* Trade Form */}
       {role !== "ADMIN" && (
         <Card>
           <div className="font-semibold mb-2">Trade</div>
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex gap-3 items-center flex-wrap">
             <input
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
@@ -230,7 +249,7 @@ export default function Dashboard() {
             <button
               disabled={!sys.trading_enabled}
               onClick={() => trade("buy", symbol, qty)}
-              className="px-4 py-2 bg-green-600 rounded hover:bg-green-500 disabled:opacity-50"
+              className="px-4 py-2 bg-green-600 rounded"
             >
               Buy
             </button>
@@ -238,63 +257,15 @@ export default function Dashboard() {
             <button
               disabled={!sys.trading_enabled}
               onClick={() => trade("sell", symbol, qty)}
-              className="px-4 py-2 bg-red-600 rounded hover:bg-red-500 disabled:opacity-50"
+              className="px-4 py-2 bg-red-600 rounded"
             >
               Sell
             </button>
           </div>
-
-          {price > 0 && (
-            <div className="text-sm text-gray-300 mt-1">
-              Price: ${price.toFixed(2)} | Total: ${totalCost.toFixed(2)}
-            </div>
-          )}
         </Card>
       )}
 
-      {/* Portfolio */}
-      {data.positions?.length > 0 && (
-        <Card>
-          <div className="font-semibold mb-3">Trade Summary</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400">
-                <th className="pb-2 text-left">Symbol</th>
-                <th className="pb-2 text-left">Qty</th>
-                <th className="pb-2 text-left">Avg Buy</th>
-                <th className="pb-2 text-left">Current</th>
-                <th className="pb-2 text-right">P/L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.positions.map((p) => {
-                const { diff } = pl(p);
-                const profit = diff >= 0;
-                return (
-                  <tr key={p.symbol} className="border-t border-gray-800">
-                    <td className="py-2">{p.symbol}</td>
-                    <td>{p.quantity}</td>
-                    <td>${Number(p.average_price).toFixed(2)}</td>
-                    <td>${Number(p.current_price).toFixed(2)}</td>
-                    <td
-                      className={`text-right font-bold ${
-                        profit ? "text-green-400" : "text-red-400"
-                      }`}
-                    >
-                      {profit ? "▲" : "▼"} ${diff.toFixed(2)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {/* ============================
-          🔥 UPDATED MARKET SECTION
-          WITH LIVE TREND (▲ ▼ + %)
-      ============================ */}
+      {/* Market with Trend Graph */}
       <Card>
         <div className="font-semibold mb-2">Market</div>
 
@@ -304,6 +275,7 @@ export default function Dashboard() {
               <th className="p-2 text-left">Symbol</th>
               <th className="p-2 text-left">Price</th>
               <th className="p-2 text-left">Trend</th>
+              <th className="p-2 text-left">Growth</th>
               <th className="p-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -312,26 +284,26 @@ export default function Dashboard() {
             {market.map((m) => {
               const current = Number(m.current_price);
               const prev = Number(previousMarket[m.symbol] || current);
-
               const diff = current - prev;
               const percent = prev > 0 ? ((diff / prev) * 100).toFixed(2) : 0;
               const rising = diff >= 0;
+              const history = marketHistory[m.symbol] || [];
 
               return (
                 <tr key={m.symbol} className="border-t border-gray-800">
                   <td className="p-2">{m.symbol}</td>
+                  <td className="p-2">${current.toFixed(2)}</td>
 
-                  <td className="p-2">
-                    ${current.toFixed(2)}
-                  </td>
-
-                  {/* 📈 Trend */}
                   <td
                     className={`p-2 font-bold ${
                       rising ? "text-green-400" : "text-red-400"
                     }`}
                   >
                     {rising ? "▲" : "▼"} {percent}%
+                  </td>
+
+                  <td className="p-2">
+                    <MiniTrend points={history} rising={rising} />
                   </td>
 
                   <td className="p-2 text-right flex gap-2 justify-end">
@@ -346,7 +318,6 @@ export default function Dashboard() {
                         >
                           Buy
                         </button>
-
                         <button
                           onClick={() => {
                             const q = prompt(`Sell how many shares of ${m.symbol}?`);
@@ -358,16 +329,6 @@ export default function Dashboard() {
                         </button>
                       </>
                     )}
-
-                    <button
-                      onClick={() => {
-                        setSymbol(m.symbol);
-                        loadCandles(m.symbol);
-                      }}
-                      className="px-3 py-1 bg-blue-600 rounded"
-                    >
-                      Chart
-                    </button>
                   </td>
                 </tr>
               );
@@ -376,7 +337,7 @@ export default function Dashboard() {
         </table>
       </Card>
 
-      {/* Chart */}
+      {/* Candle Chart */}
       {candleData.length > 0 && (
         <Card>
           <div className="font-semibold mb-2">Candlestick Chart — {symbol}</div>
