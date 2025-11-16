@@ -10,6 +10,14 @@ export default function Landing() {
   const [cashAssign, setCashAssign] = useState(100000);
   const [recentTrades, setRecentTrades] = useState([]);
 
+  // NEW: Assign to individual
+  const [assignUser, setAssignUser] = useState(null);
+  const [assignAmount, setAssignAmount] = useState("");
+
+  // NEW: Bulk approve modal
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkAmount, setBulkAmount] = useState("");
+
   useEffect(() => {
     load();
     const id = setInterval(load, 4000);
@@ -25,12 +33,10 @@ export default function Landing() {
 
       const h = { Authorization: `Bearer ${token}` };
 
-      const p = await fetch(`${API}/api/admin/players`, { headers: h })
-        .then((r) => r.json());
+      const p = await fetch(`${API}/api/admin/players`, { headers: h }).then(r => r.json());
       setPlayers(p);
 
-      const t = await fetch(`${API}/api/admin/recent-trades`, { headers: h })
-        .then((r) => r.json());
+      const t = await fetch(`${API}/api/admin/recent-trades`, { headers: h }).then(r => r.json());
       setRecentTrades(t);
 
     } catch (err) {
@@ -88,17 +94,55 @@ export default function Landing() {
 
     const data = await res.json();
     if (data.ok) {
-      alert("✅ User removed");
+      alert("User removed");
       load();
     } else {
       alert(data.error || "Error removing user");
     }
   }
 
+  // NEW: Assign cash to individual
+  async function assignCashToUser() {
+    if (!assignUser) return;
+
+    const h = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    await fetch(`${API}/api/admin/assign-cash/${assignUser.id}`, {
+      method: "POST",
+      headers: h,
+      body: JSON.stringify({ amount: Number(assignAmount) }),
+    });
+
+    setAssignUser(null);
+    setAssignAmount("");
+    load();
+  }
+
+  // NEW: Bulk approve all
+  async function approveAll() {
+    const h = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    await fetch(`${API}/api/admin/approve-all`, {
+      method: "POST",
+      headers: h,
+      body: JSON.stringify({ amount: Number(bulkAmount) }),
+    });
+
+    setBulkModal(false);
+    setBulkAmount("");
+    load();
+  }
+
   return (
     <div className="grid gap-6">
 
-      {/* ✅ User Landing page */}
+      {/* Non-admin landing UI */}
       {role !== "ADMIN" && (
         <div className="p-6 rounded-xl bg-gray-900/60 border border-gray-800">
           <h2 className="text-xl font-bold">Welcome to TradeRace</h2>
@@ -115,11 +159,11 @@ export default function Landing() {
         </div>
       )}
 
-      {/* ✅ Admin Dashboard */}
+      {/* ADMIN DASHBOARD */}
       {role === "ADMIN" && (
         <div className="grid gap-6">
 
-          {/* 🟢 Trading Control */}
+          {/* Trading Control */}
           <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 flex justify-between items-center">
             <div>
               <div className="font-semibold text-lg">Trading Control</div>
@@ -145,19 +189,22 @@ export default function Landing() {
             </button>
           </div>
 
-          {/* 🧑‍🤝‍🧑 Players Table */}
+          {/* Players Table */}
           <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
-            <div className="font-semibold text-lg mb-3">Players</div>
 
-            <div className="flex gap-2 items-center mb-3">
-              <span className="text-gray-400 text-sm">Assign Cash:</span>
-              <input
-                type="number"
-                className="px-2 py-1 w-28 bg-gray-800 border border-gray-700 rounded"
-                value={cashAssign}
-                onChange={(e) => setCashAssign(e.target.value)}
-              />
+            <div className="flex justify-between mb-3">
+              <div className="font-semibold text-lg">Players</div>
+
+              {/* NEW: Bulk approve button */}
+              <button
+                onClick={() => setBulkModal(true)}
+                className="px-4 py-2 bg-blue-700 rounded hover:bg-blue-600"
+              >
+                Approve All + Assign Funds
+              </button>
             </div>
+
+
 
             <table className="w-full text-sm">
               <thead className="text-gray-400">
@@ -170,23 +217,36 @@ export default function Landing() {
               </thead>
 
               <tbody>
-                {players.length > 0 ? (
+                {players.length ? (
                   players.map((p) => (
                     <tr key={p.id} className="border-t border-gray-800">
                       <td className="p-2">{p.email}</td>
                       <td className="p-2 text-center">{p.status}</td>
                       <td className="p-2 text-right">${Number(p.virtual_cash).toFixed(2)}</td>
+
                       <td className="p-2">
                         <div className="flex gap-2 justify-end">
-                          {p.status !== "APPROVED" && (
+
+                          {/* NEW: Assign Cash */}
+                          <button
+                            onClick={() => {
+                              setAssignUser(p);
+                              setAssignAmount("");
+                            }}
+                            className="px-3 py-1 bg-purple-600 rounded hover:bg-purple-500"
+                          >
+                            Assign Cash
+                          </button>
+
+                          {/* Existing Approve / Block */}
+                          {p.status !== "APPROVED" ? (
                             <button
                               onClick={() => approve(p.id)}
                               className="px-3 py-1 bg-emerald-600 rounded hover:bg-emerald-500"
                             >
                               Approve
                             </button>
-                          )}
-                          {p.status === "APPROVED" && (
+                          ) : (
                             <button
                               onClick={() => block(p.id)}
                               className="px-3 py-1 bg-rose-600 rounded hover:bg-rose-500"
@@ -194,6 +254,8 @@ export default function Landing() {
                               Block
                             </button>
                           )}
+
+                          {/* Remove */}
                           <button
                             onClick={() => removeUser(p.id)}
                             className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-500"
@@ -215,7 +277,7 @@ export default function Landing() {
             </table>
           </div>
 
-          {/* 📈 Recent Trades */}
+          {/* Recent Trades */}
           <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
             <div className="font-semibold text-lg mb-3">Recent Trades</div>
 
@@ -232,7 +294,7 @@ export default function Landing() {
               </thead>
 
               <tbody>
-                {recentTrades.length > 0 ? (
+                {recentTrades.length ? (
                   recentTrades.map((t) => (
                     <tr key={t.id} className="border-t border-gray-800">
                       <td className="p-2">{t.email}</td>
@@ -260,6 +322,76 @@ export default function Landing() {
 
         </div>
       )}
+
+      {/* MODALS */}
+
+      {/* Assign Individual Cash Modal */}
+      {assignUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-gray-900 p-6 rounded-xl w-80 border border-gray-700">
+            <div className="text-lg font-bold mb-3">Assign Cash</div>
+            <div className="text-gray-400 mb-2">{assignUser.email}</div>
+
+            <input
+              type="number"
+              value={assignAmount}
+              onChange={(e) => setAssignAmount(e.target.value)}
+              placeholder="Enter amount"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded mb-4"
+            />
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => setAssignUser(null)}
+                className="px-4 py-2 bg-gray-700 rounded"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={assignCashToUser}
+                className="px-4 py-2 bg-blue-600 rounded"
+              >
+                Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Approve Modal */}
+      {bulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-gray-900 p-6 rounded-xl w-80 border border-gray-700">
+            <div className="text-lg font-bold mb-3">Approve All Users</div>
+
+            <input
+              type="number"
+              value={bulkAmount}
+              onChange={(e) => setBulkAmount(e.target.value)}
+              placeholder="Enter amount to assign to all"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded mb-4"
+            />
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => setBulkModal(false)}
+                className="px-4 py-2 bg-gray-700 rounded"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={approveAll}
+                className="px-4 py-2 bg-green-600 rounded"
+              >
+                Approve All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
