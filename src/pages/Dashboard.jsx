@@ -379,53 +379,81 @@ export default function Dashboard() {
         </table>
       </Card>
 
-      {/* TRADE HISTORY */}
-      <Card>
-        <div className="font-semibold mb-2">Recent Trade History</div>
+      {/* ===========================
+    USER HOLDINGS TABLE
+=========================== */}
+<Card>
+  <div className="font-semibold mb-2">Your Holdings</div>
 
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-400">
-              <th className="p-2 text-left">Symbol</th>
-              <th className="p-2 text-left">Type</th>
-              <th className="p-2 text-left">Qty</th>
-              <th className="p-2 text-left">Price</th>
-              <th className="p-2 text-left">Time</th>
+  <table className="w-full text-sm">
+    <thead>
+      <tr className="text-gray-400">
+        <th className="p-2 text-left">Symbol</th>
+        <th className="p-2 text-left">Qty</th>
+        <th className="p-2 text-left">Avg Price</th>
+        <th className="p-2 text-left">Current</th>
+        <th className="p-2 text-left">P/L</th>
+        <th className="p-2 text-right">Sell</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {data.positions.length > 0 ? (
+        data.positions.map((p) => {
+          const avg = Number(p.average_price);
+          const curr = Number(p.current_price);
+          const pl = ((curr - avg) / avg) * 100;
+
+          return (
+            <tr key={p.symbol} className="border-t border-gray-800">
+              <td
+                className="p-2 cursor-pointer hover:underline"
+                onClick={() => setSymbol(p.symbol)}
+              >
+                {p.symbol}
+              </td>
+
+              <td className="p-2">{p.quantity}</td>
+
+              <td className="p-2">${avg.toFixed(2)}</td>
+
+              <td className="p-2">${curr.toFixed(2)}</td>
+
+              <td
+                className={`p-2 font-bold ${
+                  pl >= 0 ? "text-green-400" : "text-red-400"
+                }`}
+              >
+                {pl.toFixed(2)}%
+              </td>
+
+              <td className="p-2 text-right">
+                <button
+                  onClick={() => {
+                    const q = prompt(
+                      `Sell how many of ${p.symbol}? (You own ${p.quantity})`
+                    );
+                    if (q) trade("sell", p.symbol, q);
+                  }}
+                  className="px-3 py-1 bg-red-600 rounded"
+                >
+                  Sell
+                </button>
+              </td>
             </tr>
-          </thead>
+          );
+        })
+      ) : (
+        <tr>
+          <td className="p-2 text-center text-gray-500" colSpan={6}>
+            No holdings yet
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</Card>
 
-          <tbody>
-            {tradeHistory.length > 0 ? (
-              tradeHistory.map((t, i) => (
-                <tr key={i} className="border-t border-gray-800">
-                  <td className="p-2">{t.symbol}</td>
-
-                  <td
-                    className={`p-2 font-bold ${
-                      t.trade_type === "BUY" ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {t.trade_type}
-                  </td>
-
-                  <td className="p-2">{t.quantity}</td>
-                  <td className="p-2">${Number(t.price).toFixed(2)}</td>
-
-                  <td className="p-2">
-                    {new Date(t.timestamp).toLocaleTimeString()}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td className="p-2 text-gray-500 text-center" colSpan={5}>
-                  No trades yet
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
 
      
     </motion.div>
