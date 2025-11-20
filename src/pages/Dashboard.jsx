@@ -18,7 +18,7 @@ function Card({ children }) {
 }
 
 /* ======================
-   MINI TREND LINE (SVG)
+   MINI TREND GRAPH
 ======================= */
 function MiniTrend({ points, rising }) {
   if (!points || points.length < 2) return <div className="h-6"></div>;
@@ -34,7 +34,7 @@ function MiniTrend({ points, rising }) {
   });
 
   return (
-    <svg width="100" height="30" viewBox="0 0 100 100" className="overflow-visible">
+    <svg width="100" height="30" viewBox="0 0 100 100">
       <polyline
         fill="none"
         stroke={rising ? "#22c55e" : "#ef4444"}
@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [market, setMarket] = useState([]);
   const [previousMarket, setPreviousMarket] = useState({});
   const [marketHistory, setMarketHistory] = useState({});
+  const [tradeHistory, setTradeHistory] = useState([]);
 
   const [popup, setPopup] = useState("");
 
@@ -71,7 +72,9 @@ export default function Dashboard() {
   const chartRef = useRef(null);
   const chartObj = useRef(null);
 
-  // Load Data
+  /* ======================
+     LOAD DATA
+  ======================= */
   useEffect(() => {
     if (!token) return navigate("/login");
 
@@ -87,28 +90,34 @@ export default function Dashboard() {
 
         const m = await fetch(`${API}/api/prices`).then((r) => r.json());
 
-        // Save previous price for trend
+        // Trend arrows
         setPreviousMarket((prev) => {
-          const newMap = {};
+          const map = {};
           m.forEach((x) => {
-            newMap[x.symbol] = prev[x.symbol] || x.current_price;
+            map[x.symbol] = prev[x.symbol] || x.current_price;
           });
-          return newMap;
+          return map;
         });
 
-        // Save 20-point history per symbol
+        // Trend mini graph
         setMarketHistory((prev) => {
-          const newHistory = { ...prev };
+          const h = { ...prev };
           m.forEach((x) => {
-            if (!newHistory[x.symbol]) newHistory[x.symbol] = [];
-            newHistory[x.symbol].push(Number(x.current_price));
-            if (newHistory[x.symbol].length > 20)
-              newHistory[x.symbol].shift();
+            if (!h[x.symbol]) h[x.symbol] = [];
+            h[x.symbol].push(Number(x.current_price));
+
+            if (h[x.symbol].length > 20) h[x.symbol].shift();
           });
-          return newHistory;
+          return h;
         });
 
         setMarket(m);
+
+        // NEW — load trade history
+        const trades = await fetch(`${API}/api/portfolio-history`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((r) => r.json());
+        setTradeHistory(trades);
       } catch (e) {
         setPopup(e.message);
       }
@@ -119,7 +128,24 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [token, navigate]);
 
-  // Trade
+  /* ======================
+     REFRESH AFTER TRADE
+  ======================= */
+  async function refreshPortfolioAndTrades() {
+    const pf = await fetch(`${API}/api/portfolio`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    setData(pf);
+
+    const trades = await fetch(`${API}/api/portfolio-history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    setTradeHistory(trades);
+  }
+
+  /* ======================
+     TRADE
+  ======================= */
   async function trade(kind, sym, quantity) {
     if (role === "ADMIN") return alert("Admins cannot trade!");
 
@@ -136,16 +162,15 @@ export default function Dashboard() {
       const j = await r.json();
       if (!r.ok) return setPopup(j.error || "Trade failed");
 
-      const pf = await fetch(`${API}/api/portfolio`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json());
-      setData(pf);
+      await refreshPortfolioAndTrades();
     } catch (e) {
       setPopup(e.message);
     }
   }
 
-  // Candles
+  /* ======================
+     CANDLE DATA
+  ======================= */
   function loadCandles(sym) {
     fetch(`${API}/api/candles/${sym}`)
       .then((r) => r.json())
@@ -153,7 +178,12 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    loadCandles(symbol);
+  }, [symbol]);
+
+  useEffect(() => {
     if (!chartRef.current || candleData.length === 0) return;
+
     if (chartObj.current) chartObj.current.remove();
 
     const chart = createChart(chartRef.current, {
@@ -165,13 +195,17 @@ export default function Dashboard() {
         horzLines: { color: "#1f2937" },
       },
     });
-    const candleSeries = chart.addSeries({
+
+    const candles = chart.addSeries({
       type: "candlestick",
       upColor: "#16a34a",
       downColor: "#dc2626",
+      borderVisible: false,
+      wickUpColor: "#16a34a",
+      wickDownColor: "#dc2626",
     });
 
-    candleSeries.setData(
+    candles.setData(
       candleData.map((d) => ({
         time: d.time,
         open: Number(d.open),
@@ -180,9 +214,13 @@ export default function Dashboard() {
         close: Number(d.close),
       }))
     );
+
     chartObj.current = chart;
   }, [candleData]);
 
+  /* ======================
+     UI
+  ======================= */
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -194,7 +232,10 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-600 w-72 text-center">
             <div>{popup}</div>
-            <button className="mt-3 w-full bg-red-600 py-2 rounded" onClick={() => setPopup("")}>
+            <button
+              className="mt-3 w-full bg-red-600 py-2 rounded"
+              onClick={() => setPopup("")}
+            >
               Close
             </button>
           </div>
@@ -231,6 +272,7 @@ export default function Dashboard() {
       {role !== "ADMIN" && (
         <Card>
           <div className="font-semibold mb-2">Trade</div>
+
           <div className="flex gap-3 items-center flex-wrap">
             <input
               value={symbol}
@@ -265,7 +307,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Market with Trend Graph */}
+      {/* Market Table */}
       <Card>
         <div className="font-semibold mb-2">Market</div>
 
@@ -291,7 +333,13 @@ export default function Dashboard() {
 
               return (
                 <tr key={m.symbol} className="border-t border-gray-800">
-                  <td className="p-2">{m.symbol}</td>
+                  <td
+                    className="p-2 cursor-pointer hover:underline"
+                    onClick={() => setSymbol(m.symbol)}
+                  >
+                    {m.symbol}
+                  </td>
+
                   <td className="p-2">${current.toFixed(2)}</td>
 
                   <td
@@ -318,6 +366,7 @@ export default function Dashboard() {
                         >
                           Buy
                         </button>
+
                         <button
                           onClick={() => {
                             const q = prompt(`Sell how many shares of ${m.symbol}?`);
@@ -337,9 +386,7 @@ export default function Dashboard() {
         </table>
       </Card>
 
-      {/* ===========================
-         TRADE HISTORY (New)
-      ============================ */}
+      {/* Trade History */}
       <Card>
         <div className="font-semibold mb-2">Recent Trade History</div>
 
@@ -356,8 +403,8 @@ export default function Dashboard() {
 
           <tbody>
             {tradeHistory.length > 0 ? (
-              tradeHistory.map((t) => (
-                <tr key={t.id} className="border-t border-gray-800">
+              tradeHistory.map((t, i) => (
+                <tr key={i} className="border-t border-gray-800">
                   <td className="p-2">{t.symbol}</td>
 
                   <td
@@ -386,7 +433,6 @@ export default function Dashboard() {
           </tbody>
         </table>
       </Card>
-
 
       {/* Candle Chart */}
       {candleData.length > 0 && (
