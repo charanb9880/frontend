@@ -337,6 +337,57 @@ export default function Dashboard() {
         </table>
       </Card>
 
+      {/* ===========================
+         TRADE HISTORY (New)
+      ============================ */}
+      <Card>
+        <div className="font-semibold mb-2">Recent Trade History</div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400">
+              <th className="p-2 text-left">Symbol</th>
+              <th className="p-2 text-left">Type</th>
+              <th className="p-2 text-left">Qty</th>
+              <th className="p-2 text-left">Price</th>
+              <th className="p-2 text-left">Time</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {tradeHistory.length > 0 ? (
+              tradeHistory.map((t) => (
+                <tr key={t.id} className="border-t border-gray-800">
+                  <td className="p-2">{t.symbol}</td>
+
+                  <td
+                    className={`p-2 font-bold ${
+                      t.trade_type === "BUY" ? "text-green-400" : "text-red-400"
+                    }`}
+                  >
+                    {t.trade_type}
+                  </td>
+
+                  <td className="p-2">{t.quantity}</td>
+                  <td className="p-2">${Number(t.price).toFixed(2)}</td>
+
+                  <td className="p-2">
+                    {new Date(t.timestamp).toLocaleTimeString()}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="p-2 text-gray-500 text-center" colSpan={5}>
+                  No trades yet
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+
+
       {/* Candle Chart */}
       {candleData.length > 0 && (
         <Card>
