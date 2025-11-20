@@ -427,13 +427,7 @@ export default function Dashboard() {
         </table>
       </Card>
 
-      {/* CANDLE CHART */}
-      {candleData.length > 0 && (
-        <Card>
-          <div className="font-semibold mb-2">Candlestick Chart — {symbol}</div>
-          <div ref={chartRef} className="w-full h-80"></div>
-        </Card>
-      )}
+     
     </motion.div>
   );
 }
