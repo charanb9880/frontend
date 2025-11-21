@@ -19,13 +19,41 @@ export default function AdminPanel() {
   const [editUser, setEditUser] = useState(null);
   const [editAmount, setEditAmount] = useState("");
 
-  // ASSIGN CASH MODAL (individual)
+  // ASSIGN CASH MODAL
   const [assignUser, setAssignUser] = useState(null);
   const [assignAmount, setAssignAmount] = useState("");
 
-  // BULK APPROVE + ASSIGN modal
+  // BULK APPROVE modal
   const [showBulkApprove, setShowBulkApprove] = useState(false);
   const [bulkAmount, setBulkAmount] = useState("");
+
+  // ✅ UNIVERSAL TIME FORMATTER
+  function formatTradeTime(time) {
+    if (!time) return "—";
+
+    let t = time;
+
+    // If timestamp is numeric (unix seconds or ms)
+    if (!isNaN(t)) {
+      t = Number(t);
+
+      // seconds → milliseconds
+      if (t.toString().length === 10) {
+        t = t * 1000;
+      }
+
+      const d = new Date(t);
+      return isNaN(d) ? "—" : d.toLocaleTimeString();
+    }
+
+    // SQL style: "YYYY-MM-DD HH:MM:SS"
+    if (typeof t === "string" && t.includes(" ") && !t.includes("T")) {
+      t = t.replace(" ", "T");
+    }
+
+    const d = new Date(t);
+    return isNaN(d) ? "—" : d.toLocaleTimeString();
+  }
 
   useEffect(() => {
     if (role !== "ADMIN") {
@@ -66,7 +94,7 @@ export default function AdminPanel() {
     }
   }
 
-  // Approve single user (existing)
+  // Approve single user
   async function approve(id) {
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -82,7 +110,7 @@ export default function AdminPanel() {
     load();
   }
 
-  // Block user (existing)
+  // Block user
   async function block(id) {
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -98,7 +126,7 @@ export default function AdminPanel() {
     load();
   }
 
-  // Trading toggle (existing)
+  // Trading toggle
   async function toggle() {
     const headers = { Authorization: `Bearer ${token}` };
     const url = sys.trading_enabled
@@ -109,7 +137,7 @@ export default function AdminPanel() {
     load();
   }
 
-  // Save edit cash (existing)
+  // Save edited cash
   async function saveCash() {
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -129,7 +157,7 @@ export default function AdminPanel() {
     load();
   }
 
-  // Assign cash to an individual user (new)
+  // Assign cash to user
   async function assignCash() {
     if (!assignUser) return;
     const headers = {
@@ -148,7 +176,7 @@ export default function AdminPanel() {
     load();
   }
 
-  // Bulk approve all pending users and assign same amount (new)
+  // Bulk approve
   async function bulkApprove() {
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -174,7 +202,8 @@ export default function AdminPanel() {
   return (
     <div className="grid gap-6 p-4 text-white max-w-6xl mx-auto min-h-screen bg-gray-950">
 
-      {/* EDIT CASH MODAL */}
+      {/* ---- Modals (Edit, Assign, Bulk) remain same ---- */}
+
       <AnimatePresence>
         {editUser && (
           <motion.div
@@ -219,7 +248,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* ASSIGN CASH MODAL */}
+      {/* ASSIGN CASH */}
       <AnimatePresence>
         {assignUser && (
           <motion.div
@@ -268,7 +297,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* BULK APPROVE MODAL */}
+      {/* BULK APPROVE */}
       <AnimatePresence>
         {showBulkApprove && (
           <motion.div
@@ -290,7 +319,7 @@ export default function AdminPanel() {
                 value={bulkAmount}
                 onChange={(e) => setBulkAmount(e.target.value)}
                 className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 mb-4"
-                placeholder="Enter amount to assign to all pending users"
+                placeholder="Enter amount for all pending users"
               />
 
               <div className="flex justify-between">
@@ -458,7 +487,11 @@ export default function AdminPanel() {
                 >
                   <td className="py-2">{displayName(p)}</td>
                   <td className="text-right">${total.toFixed(2)}</td>
-                  <td className={`text-right font-bold ${green ? "text-green-400" : "text-red-400"}`}>
+                  <td
+                    className={`text-right font-bold ${
+                      green ? "text-green-400" : "text-red-400"
+                    }`}
+                  >
                     {green ? "▲" : "▼"} ${prof.toFixed(2)}
                   </td>
                 </motion.tr>
@@ -468,7 +501,7 @@ export default function AdminPanel() {
         </table>
       </div>
 
-      {/* RECENT TRADES */}
+      {/* RECENT TRADES — FIXED */}
       <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 shadow-lg">
         <div className="font-semibold mb-3 text-xl">Recent Trades</div>
 
@@ -496,20 +529,27 @@ export default function AdminPanel() {
               >
                 <td className="py-2">{t.name || t.email.split("@")[0]}</td>
                 <td>{t.symbol}</td>
-                <td className={t.trade_type === "BUY" ? "text-green-400" : "text-red-400"}>
+                <td
+                  className={
+                    t.trade_type === "BUY" ? "text-green-400" : "text-red-400"
+                  }
+                >
                   {t.trade_type}
                 </td>
                 <td className="text-right">{t.quantity}</td>
-                <td className="text-right">${Number(t.price).toFixed(2)}</td>
                 <td className="text-right">
-                  {new Date(t.time).toLocaleTimeString()}
+                  ${Number(t.price).toFixed(2)}
+                </td>
+
+                {/* ✔ FIXED UNIVERSAL TIME DISPLAY */}
+                <td className="text-right">
+                  {formatTradeTime(t.time)}
                 </td>
               </motion.tr>
             ))}
           </tbody>
         </table>
       </div>
-
     </div>
   );
 }
